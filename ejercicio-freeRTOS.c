@@ -40,8 +40,9 @@
 //Globales
 uint32_t g_ui32CPUUsage;
 uint32_t g_ui32SystemClock;
-QueueHandle_t servos_ctl;
-
+uint32_t g_servo_mode;
+QueueHandle_t servos_ctl, servos_mode;
+QueueSetHandle_t servos_set;
 //*****************************************************************************
 //
 // The error routine that is called if the driver library encounters an error.
@@ -119,24 +120,60 @@ void vApplicationIdleHook (void )
 
 static portTASK_FUNCTION(CTLTask,pvParameters)
 {
-    uint32_t r = 0, v_out_6 = 0, v_out_7 = 0;
+    uint32_t r = 0, v_r = 0, v_l = 0;
+    uint8_t res = 0;
+    QueueSetMemberHandle_t q;
     while(1){
-        xQueueReceive(servos_ctl, (void *)&r, portMAX_DELAY);
+        q = xQueueSelectFromSet(servos_set, portMAX_DELAY);
+        if(q == servos_ctl){
+            xQueueReceive(servos_ctl, (void *)&r, 0);
 
-        v_out_6 = PWMPulseWidthGet(PWM1_BASE, LEFT_SERVO);
-        v_out_7 = PWMPulseWidthGet(PWM1_BASE, RIGHT_SERVO);
-        if((r & GPIO_PIN_0) && (v_out_6 < COUNT_2MS) && (v_out_7 > COUNT_1MS)){
-            //Aceleramos
-            v_out_6 += CYCLE_INCREMENTS;
-            v_out_7 -= CYCLE_INCREMENTS;
-            PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_out_6);
-            PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_out_7);
-        } else if ((r & GPIO_PIN_4) && (v_out_7 < COUNT_2MS) && (v_out_6 > COUNT_1MS)){
-            // Frenamos
-            v_out_6 -= CYCLE_INCREMENTS;
-            v_out_7 += CYCLE_INCREMENTS;
-            PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_out_6);
-            PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_out_7);
+            v_l = PWMPulseWidthGet(PWM1_BASE, LEFT_SERVO);
+            v_r = PWMPulseWidthGet(PWM1_BASE, RIGHT_SERVO);
+            if((r & GPIO_PIN_0) && (v_l < COUNT_2MS) && (v_r > COUNT_1MS)){
+                //Aceleramos
+                v_l += CYCLE_INCREMENTS;
+                v_r -= CYCLE_INCREMENTS;
+            } else if ((r & GPIO_PIN_4) && (v_r < COUNT_2MS) && (v_l > COUNT_1MS)){
+                // Frenamos
+                v_l -= CYCLE_INCREMENTS;
+                v_r += CYCLE_INCREMENTS;
+            }
+
+            if(g_servo_mode == SERVO_STRAIGHT){
+                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
+                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_r);
+            } else if(g_servo_mode == SERVO_TURN_LEFT){
+                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_r);
+            } else if(g_servo_mode == SERVO_TURN_RIGHT){
+                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
+            } else if (g_servo_mode == SERVO_ROTATE){
+                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
+                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_l);
+            }
+        } else if (q == servos_mode){
+            xQueueReceive(servos_mode, (void *)&res, 0);
+            g_servo_mode = res;
+            switch(g_servo_mode){
+                case SERVO_STRAIGHT:
+                    setServosSpeed(0.0f);
+                    break;
+
+                case SERVO_TURN_LEFT:
+                    setSingleServoSpeed(LEFT_SERVO, 0.1f);
+                    setSingleServoSpeed(RIGHT_SERVO, 0.5f);
+                    break;
+
+                case SERVO_TURN_RIGHT:
+                    setSingleServoSpeed(RIGHT_SERVO, 0.1f);
+                    setSingleServoSpeed(LEFT_SERVO, 0.5f);
+                    break;
+
+                case SERVO_ROTATE:
+                    setSingleServoSpeed(RIGHT_SERVO, 0.1f);
+                    setSingleServoSpeed(LEFT_SERVO, -0.1f);
+                    break;
+            }
         }
     }
 }
@@ -193,7 +230,20 @@ int main(void)
     }
 
     servos_mode = xQueueCreate(1, sizeof(uint8_t));
-    if(servos_ctl == NULL){
+    if(servos_mode == NULL){
+        while(1);
+    }
+
+    servos_set = xQueueCreateSet(11);
+    if(servos_set == NULL){
+        while(1);
+    }
+
+    if(xQueueAddToSet(servos_ctl, servos_set) != pdPASS){
+        while(1);
+    }
+
+    if(xQueueAddToSet(servos_mode, servos_set) != pdPASS){
         while(1);
     }
 
@@ -202,10 +252,10 @@ int main(void)
         while(1);
     }
 
-    /*if (initCommandLine(512,tskIDLE_PRIORITY + 1) != pdTRUE)
+    if (initCommandLine(512,tskIDLE_PRIORITY + 1) != pdTRUE)
     {
         while(1);
-    }*/
+    }
 
 
     //

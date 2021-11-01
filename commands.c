@@ -38,11 +38,13 @@
 #include "utils/uartstdio.h"
 
 #include "drivers/rgb.h"
+#include "drivers/servos.h"
 
 // ==============================================================================
 // The CPU usage in percent, in 16.16 fixed point format.
 // ==============================================================================
 extern uint32_t g_ui32CPUUsage;
+extern QueueHandle_t servos_mode;
 
 // ==============================================================================
 // Implementa el comando cpu que muestra el uso de CPU
@@ -282,6 +284,28 @@ static int Cmd_rgb(int argc, char *argv[])
 }
 
 
+static int Cmd_servos(int argc, char *argv[]){
+    uint8_t res = 0;
+    if(argc < 2){
+       UARTprintf("servo [go_straight|turn_left|turn_right|rotate\r\n");
+    }else {
+		if (0==strncmp( argv[1], "go_straight", sizeof(argv[1]))){
+		    res = SERVO_STRAIGHT;
+            xQueueSend(servos_mode, (void *)&res, 0);
+		} else if (0==strncmp( argv[1], "turn_left", 9)){
+		    res = SERVO_TURN_LEFT;
+            xQueueSend(servos_mode, (void *)&res, 0);
+		} else if (0==strncmp( argv[1], "turn_right", 19)){
+		    res = SERVO_TURN_RIGHT;
+            xQueueSend(servos_mode, (void *)&res, 0);
+		} else if (0==strncmp( argv[1], "rotate", 6)){
+		    res = SERVO_ROTATE;
+            xQueueSend(servos_mode, (void *)&res, 0);
+		}
+    }
+
+    return 0;
+}
 
 
 // ==============================================================================
@@ -304,6 +328,7 @@ tCmdLineEntry g_psCmdTable[] =
 #if (configGENERATE_RUN_TIME_STATS)
 	{ "stats",    Cmd_stats,      "     : Muestra estadisticas de las tareas" },
 #endif
+	{"servo", Cmd_servos, "     : Control del comportamiento de los servos"},
     { 0, 0, 0 }
 };
 

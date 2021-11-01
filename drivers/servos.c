@@ -45,14 +45,10 @@ void configServos() {
 }
 
 void setSingleServoSpeed (uint32_t servo, float vel){
-    if((servo != LEFT_SERVO) || (servo != RIGHT_SERVO) || (vel > 1.0f) || (vel < -1.0f)){
-        return;
-    }
-
     if(servo == LEFT_SERVO){
-        PWMPulseWidthSet(PWM1_BASE, servo, STOPCOUNT_L+vel*ACC);  // Establece el periodo (en este caso, un porcentaje del valor máximo
+        PWMPulseWidthSet(PWM1_BASE, servo, (uint32_t)(STOPCOUNT_L+vel*ACC));  // Establece el periodo (en este caso, un porcentaje del valor máximo
     }else{
-        PWMPulseWidthSet(PWM1_BASE, servo, STOPCOUNT_R-vel*ACC);  // Establece el periodo (en este caso, un porcentaje del valor máximo
+        PWMPulseWidthSet(PWM1_BASE, servo, (uint32_t)(STOPCOUNT_R-vel*ACC));  // Establece el periodo (en este caso, un porcentaje del valor máximo
     }
 }
 
