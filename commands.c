@@ -295,7 +295,7 @@ static int Cmd_servos(int argc, char *argv[]){
 		} else if (0==strncmp( argv[1], "turn_left", 9)){
 		    res = SERVO_TURN_LEFT;
             xQueueSend(servos_mode, (void *)&res, 0);
-		} else if (0==strncmp( argv[1], "turn_right", 19)){
+		} else if (0==strncmp( argv[1], "turn_right", 10)){
 		    res = SERVO_TURN_RIGHT;
             xQueueSend(servos_mode, (void *)&res, 0);
 		} else if (0==strncmp( argv[1], "rotate", 6)){
