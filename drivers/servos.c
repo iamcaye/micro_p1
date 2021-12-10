@@ -57,3 +57,6 @@ void setServosSpeed(float vel){
     setSingleServoSpeed(RIGHT_SERVO, vel);
 }
 
+void mover_robot(uint32_t c){
+
+}

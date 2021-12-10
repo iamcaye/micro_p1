@@ -56,6 +56,7 @@ extern "C"
 void configServos();
 void setSingleServoSpeed(uint32_t servo, float vel);
 void setServosSpeed(float vel);
+void mover_robot(uint32_t c);
 
 #ifdef __cplusplus
 }

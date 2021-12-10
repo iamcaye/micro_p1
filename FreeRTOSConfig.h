@@ -102,7 +102,7 @@
 #define configQUEUE_REGISTRY_SIZE               0 // Define el máximo número de colas y semáforos que se pueden registrar en el sistema de depuracion
 #define configUSE_QUEUE_SETS    1
 
-#define configUSE_CO_ROUTINES               0 // 1/0: Activa el uso de mecanismos de corrutinas
+#define configUSE_CO_ROUTINES               1 // 1/0: Activa el uso de mecanismos de corrutinas
 #define configMAX_CO_ROUTINE_PRIORITIES     ( 2 ) // Indica el número de prioridades que podrán tener las tareas que funcionen como corrutinas
 
 /* Software timer definitions. */

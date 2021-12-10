@@ -65,6 +65,7 @@ extern void UARTStdioIntHandler(void);
 extern void botones_ISR(void);
 extern void whisker_ISR (void);
 extern void configADC_ISR(void);
+extern void encoder_ISR(void);
 
 //*****************************************************************************
 //
@@ -93,7 +94,7 @@ void (* const g_pfnVectors[])(void) =
     0,                                      // Reserved
     xPortPendSVHandler,                     // The PendSV handler
     xPortSysTickHandler,                    // The SysTick handler
-    IntDefaultHandler,                      // GPIO Port A
+    encoder_ISR,                      // GPIO Port A
     whisker_ISR,                      // GPIO Port B
     IntDefaultHandler,                      // GPIO Port C
     IntDefaultHandler,                      // GPIO Port D

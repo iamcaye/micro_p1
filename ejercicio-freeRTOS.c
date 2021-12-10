@@ -42,9 +42,9 @@
 uint32_t g_ui32CPUUsage;
 uint32_t g_ui32SystemClock;
 uint32_t g_servo_mode;
-QueueHandle_t servos_ctl, servos_mode;
+QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders;
 QueueSetHandle_t servos_set;
-QueueHandle_t cola_adc;
+
 uint32_t g_d41[] = {4,6,8,10,12,14,16,18,20,22,24,26,28,30};
 uint32_t g_v41[] = {2810,2143,1707,1328,1257,972,901,759,687,608,567,493,464,438};
 uint32_t g_n41 = 14;
@@ -72,8 +72,8 @@ void botones_ISR(void){
     //uint32_t v_out_6 = 0, v_out_7 = 0;
     BaseType_t xHigherPriorityTaskWoken=pdFALSE;
     int r = GPIOPinRead(GPIO_PORTF_BASE, ALL_BUTTONS);
-    xQueueSendFromISR(servos_ctl, (void *)&r, &xHigherPriorityTaskWoken);
     GPIOIntClear(GPIO_PORTF_BASE, ALL_BUTTONS);
+    xQueueSendFromISR(servos_ctl, (void *)&r, &xHigherPriorityTaskWoken);
     portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 }
 
@@ -81,10 +81,18 @@ void whisker_ISR (void){
     BaseType_t xHigherPriorityTaskWoken=pdFALSE;
     uint8_t res = SERVO_CRASH;
     int r = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5);
-    xQueueSendFromISR(servos_mode, (void *)&res, &xHigherPriorityTaskWoken);
     GPIOIntClear(GPIO_PORTB_BASE, GPIO_PIN_5);
+    xQueueSendFromISR(servos_mode, (void *)&res, &xHigherPriorityTaskWoken);
     portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 }
+
+ void encoder_ISR (void) {
+    BaseType_t xHigherPriorityTaskWoken=pdFALSE;
+    uint8_t r = GPIOPinRead(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    GPIOIntClear(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    xQueueSendFromISR(q_encoders, (void *)&r, &xHigherPriorityTaskWoken);
+    portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
+ }
 
 //Esto es lo que se ejecuta cuando el sistema detecta un desbordamiento de pila
 //
@@ -191,7 +199,7 @@ static portTASK_FUNCTION(CTLTask,pvParameters)
                 case SERVO_CRASH:
                     setSingleServoSpeed(LEFT_SERVO, -0.05f);
                     setSingleServoSpeed(RIGHT_SERVO, -0.2f);
-                    SysCtlDelay(1000000);
+                    vTaskDelay(1000000);
                     setServosSpeed(0.3f);
                     g_servo_mode = SERVO_STRAIGHT;
                     break;
@@ -210,15 +218,52 @@ static portTASK_FUNCTION(CTLTask,pvParameters)
             }
 
             if(i < g_n41){
-                UARTprintf("Estamos a %d de un obstaculo\r\n", g_d41[i]);
+                //UARTprintf("Estamos a %d de un obstaculo\r\n", g_d41[i]);
                 if(g_d41[i] < 10){
                     //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 1);
                     uint32_t res = SERVO_CRASH;
-                    xQueueSend(servos_mode, (void *)&res, 0);
+                    //xQueueSend(servos_mode, (void *)&res, 0);
 
                 }
             }
         }
+    }
+}
+
+static portTASK_FUNCTION(EncoderTask,pvParameters)
+{
+    uint8_t r = 0;
+    uint32_t n_l = 0, n_r = 0;
+    uint8_t last = 0;
+    while(1){
+        xQueueReceive(q_encoders, (void *)&r, portMAX_DELAY);
+        if((r & GPIO_PIN_3) && !(GPIO_PIN_3 & last)){
+            n_l++;
+            UARTprintf("n_l: %d\n", n_l);
+        } else if(!(r & GPIO_PIN_3) && (GPIO_PIN_3 & last)) {
+            n_l++;
+            UARTprintf("n_l: %d\n", n_l);
+        }
+
+        if((r & GPIO_PIN_6) && !(GPIO_PIN_6 & last)){
+            n_r++;
+            UARTprintf("n_r: %d\n", n_r);
+        } else if(!(r & GPIO_PIN_6) && (GPIO_PIN_6 & last)) {
+            n_r++;
+            UARTprintf("n_r: %d\n", n_r);
+        }
+
+        if(n_r == 36){
+            UARTprintf("Rueda derecha ha dado una vuelta\n");
+            n_r = 0;
+        }
+
+        if(n_l == 36){
+            UARTprintf("Rueda izquierda ha dado una vuelta\n");
+            n_l = 0;
+        }
+
+        last = r;
     }
 }
 
@@ -270,6 +315,7 @@ int main(void)
     configServos();
     configADC_IniciaADC();
 
+    // Configuracion del whisker (PIN B5)
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
     SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOB);
     ROM_GPIODirModeSet(GPIO_PORTB_BASE, GPIO_PIN_5, GPIO_DIR_MODE_IN);
@@ -279,6 +325,22 @@ int main(void)
     MAP_IntPrioritySet(INT_GPIOB, configMAX_SYSCALL_INTERRUPT_PRIORITY);
     GPIOIntEnable(GPIO_PORTB_BASE, GPIO_PIN_5);
     IntEnable(INT_GPIOB);
+
+    // Configuracion de los encoders (PIN A3,5,6)
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+    SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOA);
+    GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    //MAP_GPIOPadConfigSet(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6), GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_OD);
+
+    GPIOIntTypeSet(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6), GPIO_BOTH_EDGES);
+    MAP_IntPrioritySet(INT_GPIOA, configMAX_SYSCALL_INTERRUPT_PRIORITY);
+    GPIOIntEnable(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    IntEnable(INT_GPIOA);
+
+    q_encoders = xQueueCreate(10, sizeof(uint8_t));
+    if(q_encoders == NULL){
+        while(1);
+    }
 
     servos_ctl = xQueueCreate(10, sizeof(uint32_t));
     if(servos_ctl == NULL){
@@ -308,6 +370,11 @@ int main(void)
     }
 
     if((xTaskCreate(CTLTask, (portCHAR *)"CTL Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
+    {
+        while(1);
+    }
+
+    if((xTaskCreate(EncoderTask, (portCHAR *)"Encoder Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {
         while(1);
     }
