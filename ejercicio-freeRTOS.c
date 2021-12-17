@@ -2,7 +2,7 @@
 //
 // Ejercicio FreeRTOS
 //
-// Ignacio Herrero, Jose Manuel Cano, Eva Gonzalez.
+// Laura Sanchez, Cayetano Biehler
 // 
 //
 //*****************************************************************************
@@ -42,8 +42,10 @@
 uint32_t g_ui32CPUUsage;
 uint32_t g_ui32SystemClock;
 uint32_t g_servo_mode;
-QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders;
-QueueSetHandle_t servos_set;
+QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders, q_mover, q_girar, q_steps;
+QueueSetHandle_t servos_set, move_set;
+SemaphoreHandle_t s_der, s_izq, s_control;
+int32_t pasos[12][2] = {[0 ... 11] = {NULL,NULL}};
 
 uint32_t g_d41[] = {4,6,8,10,12,14,16,18,20,22,24,26,28,30};
 uint32_t g_v41[] = {2810,2143,1707,1328,1257,972,901,759,687,608,567,493,464,438};
@@ -218,7 +220,7 @@ static portTASK_FUNCTION(CTLTask,pvParameters)
             }
 
             if(i < g_n41){
-                //UARTprintf("Estamos a %d de un obstaculo\r\n", g_d41[i]);
+                UARTprintf("Estamos a %d de un obstaculo\r\n", g_d41[i]);
                 if(g_d41[i] < 10){
                     //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 1);
                     uint32_t res = SERVO_CRASH;
@@ -233,37 +235,101 @@ static portTASK_FUNCTION(CTLTask,pvParameters)
 static portTASK_FUNCTION(EncoderTask,pvParameters)
 {
     uint8_t r = 0;
-    uint32_t n_l = 0, n_r = 0;
+    uint32_t n_l = 0, n_r = 0, pins = 0, msg = 0;
     uint8_t last = 0;
     while(1){
         xQueueReceive(q_encoders, (void *)&r, portMAX_DELAY);
-        if((r & GPIO_PIN_3) && !(GPIO_PIN_3 & last)){
+        if(((r & GPIO_PIN_3) && !(GPIO_PIN_3 & last)) || (!(r & GPIO_PIN_3) && (GPIO_PIN_3 & last))){
             n_l++;
-            UARTprintf("n_l: %d\n", n_l);
-        } else if(!(r & GPIO_PIN_3) && (GPIO_PIN_3 & last)) {
-            n_l++;
-            UARTprintf("n_l: %d\n", n_l);
+            //UARTprintf("n_l: %d\n", n_l);
+            xSemaphoreGive(s_izq);
         }
 
-        if((r & GPIO_PIN_6) && !(GPIO_PIN_6 & last)){
+        if(((r & GPIO_PIN_6) && !(GPIO_PIN_6 & last)) || (!(r & GPIO_PIN_6) && (GPIO_PIN_6 & last))){
             n_r++;
-            UARTprintf("n_r: %d\n", n_r);
-        } else if(!(r & GPIO_PIN_6) && (GPIO_PIN_6 & last)) {
-            n_r++;
-            UARTprintf("n_r: %d\n", n_r);
+            pins = GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_1);
+            pins ^= GPIO_PIN_1;
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, pins);
+            //UARTprintf("n_r: %d\n", n_r);
+            xSemaphoreGive(s_der);
         }
 
         if(n_r == 36){
-            UARTprintf("Rueda derecha ha dado una vuelta\n");
+            //UARTprintf("Rueda derecha ha dado una vuelta\n");
             n_r = 0;
         }
 
         if(n_l == 36){
-            UARTprintf("Rueda izquierda ha dado una vuelta\n");
+            //UARTprintf("Rueda izquierda ha dado una vuelta\n");
             n_l = 0;
         }
 
         last = r;
+    }
+}
+
+static portTASK_FUNCTION(MovimientoTask,pvParameters)
+{
+    QueueSetMemberHandle_t q;
+    Step_t paso;
+
+    while(1){
+        xQueueReceive(q_steps, (void *)&paso, portMAX_DELAY);
+        if(paso.izq == 0){
+            setSingleServoSpeed(LEFT_SERVO, 0.0f);
+        } else {
+            setSingleServoSpeed(LEFT_SERVO, 0.3f);
+        }
+
+        if(paso.der == 0){
+            setSingleServoSpeed(RIGHT_SERVO, 0.0f);
+        } else {
+            setSingleServoSpeed(RIGHT_SERVO, 0.3f);
+        }
+
+        while(paso.der > 0 || paso.izq > 0){
+            q = xQueueSelectFromSet(move_set, portMAX_DELAY);
+            if(q == s_der){
+                xSemaphoreTake(s_der, 0);
+                paso.der -= 1;
+            }else if(q == s_izq){
+                xSemaphoreTake(s_izq, 0);
+                paso.izq -= 1;
+            }
+        }
+        //UARTprintf("Instruccion completada");
+        xSemaphoreGive(s_control);
+    }
+}
+
+static portTASK_FUNCTION(OrdenesTask,pvParameters)
+{
+    Step_t pasos[12];
+    pasos[0].izq = 24;
+    pasos[0].der = 24;
+
+    pasos[1].izq = 27;
+    pasos[1].der = 0;
+
+    pasos[2].izq = 36;
+    pasos[2].der = 36;
+
+    pasos[3].izq = 27;
+    pasos[3].der = 0;
+
+    pasos[4].izq = 24;
+    pasos[4].der = 24;
+
+    pasos[5].izq = 27;
+    pasos[5].der = 0;
+
+    pasos[6].der = 36;
+    pasos[6].izq = 36;
+    int16_t j = 0;
+    while(1){
+       xQueueSend(q_steps, (void *)&pasos[j], 0);
+       xSemaphoreTake(s_control, portMAX_DELAY);
+       j++;
     }
 }
 
@@ -337,6 +403,26 @@ int main(void)
     GPIOIntEnable(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
     IntEnable(INT_GPIOA);
 
+    s_der = xSemaphoreCreateBinary();
+    if(s_der == NULL){
+        while(1);
+    }
+
+    s_izq = xSemaphoreCreateBinary();
+    if(s_izq == NULL){
+        while(1);
+    }
+
+    s_control = xSemaphoreCreateBinary();
+    if(s_control == NULL){
+        while(1);
+    }
+
+    q_steps = xQueueCreate(10, sizeof(Step_t));
+    if(q_steps == NULL){
+        while(1);
+    }
+
     q_encoders = xQueueCreate(10, sizeof(uint8_t));
     if(q_encoders == NULL){
         while(1);
@@ -369,12 +455,35 @@ int main(void)
         while(1);
     }
 
+    move_set = xQueueCreateSet(2);
+    if(servos_set == NULL){
+        while(1);
+    }
+
+    if(xQueueAddToSet(s_der, move_set) != pdPASS){
+        while(1);
+    }
+
+    if(xQueueAddToSet(s_izq, move_set) != pdPASS){
+        while(1);
+    }
+
     if((xTaskCreate(CTLTask, (portCHAR *)"CTL Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {
         while(1);
     }
 
     if((xTaskCreate(EncoderTask, (portCHAR *)"Encoder Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
+    {
+        while(1);
+    }
+
+    if((xTaskCreate(MovimientoTask, (portCHAR *)"Movimiento Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
+    {
+        while(1);
+    }
+
+    if((xTaskCreate(OrdenesTask, (portCHAR *)"Ordenes Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {
         while(1);
     }
