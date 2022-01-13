@@ -16,7 +16,10 @@
 #include <driverlib/pwm.h>
 #include "servos.h"
 #include "buttons.h"
-#include "FreeRTOSConfig.h"
+#include "queue.h"
+
+QueueHandle_t q_steps;
+
 
 void configServos() {
     SysCtlPWMClockSet(SYSCTL_PWMDIV_2);
@@ -42,6 +45,11 @@ void configServos() {
     PWMOutputState(PWM1_BASE, PWM_OUT_7_BIT, true);
     PWMGenEnable(PWM1_BASE, PWM_GEN_3); //Habilita/pone en marcha el generador PWM
 
+    q_steps = xQueueCreate(10, sizeof(Step_t));
+    if(q_steps == NULL){
+        while(1);
+    }
+
 }
 
 void setSingleServoSpeed (uint32_t servo, float vel){
@@ -57,6 +65,53 @@ void setServosSpeed(float vel){
     setSingleServoSpeed(RIGHT_SERVO, vel);
 }
 
-void mover_robot(uint32_t c){
-    setServosSpeed(0.4);
+void mover_robot(int32_t c){
+    Step_t mov;
+    mov.der = mov.izq = c*2;
+    xQueueSend(q_steps, (void *)&mov, 0);
+}
+
+void mover_robot_v(int32_t c, float v){
+    Step_t mov;
+    mov.der = mov.izq = c*2;
+    mov.v_izq = mov.v_der = v;
+    xQueueSend(q_steps, (void *)&mov, 0);
+}
+
+void girar_robot(int32_t g){
+    Step_t mov;
+    if(g > 0){
+        mov.izq = g/10;
+        mov.der = 0;
+    } else {
+        mov.der = g/10;
+        mov.izq = 0;
+    }
+    xQueueSend(q_steps, (void *)&mov, 0);
+}
+
+void girar_robot_v(int32_t g, float v_izq, float v_der){
+    Step_t mov;
+    if(g > 0){ // Girar a la derecha
+        mov.izq = g/10;
+        mov.der = 0;
+        if(v_izq > v_der){
+            mov.v_izq =v_izq;
+            mov.v_der =v_der;
+        } else {
+            mov.v_izq = 0.1f;
+            mov.v_der = 0.0f;
+        }
+    } else { // Girar a la izquiera
+        mov.der = g/10;
+        mov.izq = 0;
+        if(v_izq < v_der){
+            mov.v_izq =v_izq;
+            mov.v_der =v_der;
+        } else {
+            mov.v_izq = 0.1f;
+            mov.v_der = 0.0f;
+        }
+    }
+    xQueueSend(q_steps, (void *)&mov, 0);
 }

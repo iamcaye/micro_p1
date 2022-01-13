@@ -7,6 +7,8 @@
 //
 //*****************************************************************************
 
+
+#include "FreeRTOS.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -26,14 +28,12 @@
 #include "utils/uartstdio.h"
 #include "drivers/buttons.h"
 #include "drivers/rgb.h"
-#include "drivers/servos.h"
 #include "drivers/configADC.h"
-#include "FreeRTOS.h"
 #include "task.h"
-#include "queue.h"
 #include "semphr.h"
 #include "utils/cpu_usage.h"
 #include "commands.h"
+#include "drivers/servos.h"
 
 #define CTL_TASKPRIO tskIDLE_PRIORITY + 1
 #define CTL_STACKSIZE 128
@@ -42,8 +42,9 @@
 uint32_t g_ui32CPUUsage;
 uint32_t g_ui32SystemClock;
 uint32_t g_servo_mode;
-QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders, q_mover, q_girar, q_steps;
+QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders, q_mover, q_girar;
 QueueSetHandle_t servos_set, move_set;
+extern QueueHandle_t q_steps;
 SemaphoreHandle_t s_der, s_izq, s_control;
 int32_t pasos[12][2] = {[0 ... 11] = {NULL,NULL}};
 
@@ -289,13 +290,13 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
 
         while(paso.der > 0 || paso.izq > 0){
             q = xQueueSelectFromSet(move_set, portMAX_DELAY);
-            if(q == s_der){
-                xSemaphoreTake(s_der, 0);
-                paso.der -= 1;
-            }else if(q == s_izq){
-                xSemaphoreTake(s_izq, 0);
-                paso.izq -= 1;
-            }
+                if(q == s_der){
+                    xSemaphoreTake(s_der, 0);
+                    paso.der -= 1;
+                }else if(q == s_izq){
+                    xSemaphoreTake(s_izq, 0);
+                    paso.izq -= 1;
+                }
         }
         //UARTprintf("Instruccion completada");
         xSemaphoreGive(s_control);
@@ -304,32 +305,22 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
 
 static portTASK_FUNCTION(OrdenesTask,pvParameters)
 {
-    Step_t pasos[12];
-    pasos[0].izq = 24;
-    pasos[0].der = 24;
+    mover_robot(12);
+    girar_robot(90);
+    xSemaphoreTake(s_control, portMAX_DELAY);
 
-    pasos[1].izq = 27;
-    pasos[1].der = 0;
+    mover_robot(18);
+    girar_robot(90);
+    xSemaphoreTake(s_control, portMAX_DELAY);
 
-    pasos[2].izq = 36;
-    pasos[2].der = 36;
+    mover_robot(12);
+    girar_robot(90);
+    xSemaphoreTake(s_control, portMAX_DELAY);
 
-    pasos[3].izq = 27;
-    pasos[3].der = 0;
-
-    pasos[4].izq = 24;
-    pasos[4].der = 24;
-
-    pasos[5].izq = 27;
-    pasos[5].der = 0;
-
-    pasos[6].der = 36;
-    pasos[6].izq = 36;
-    int16_t j = 0;
+    mover_robot(18);
+    girar_robot(90);
+    xSemaphoreTake(s_control, portMAX_DELAY);
     while(1){
-       xQueueSend(q_steps, (void *)&pasos[j], 0);
-       xSemaphoreTake(s_control, portMAX_DELAY);
-       j++;
     }
 }
 
@@ -415,11 +406,6 @@ int main(void)
 
     s_control = xSemaphoreCreateBinary();
     if(s_control == NULL){
-        while(1);
-    }
-
-    q_steps = xQueueCreate(10, sizeof(Step_t));
-    if(q_steps == NULL){
         while(1);
     }
 

@@ -20,6 +20,7 @@ extern "C"
 {
 #endif
 
+
 #define LEFT_SERVO PWM_OUT_7
 #define RIGHT_SERVO PWM_OUT_6
 #define BOTH_SERVOS (PWM_OUT_6|PWM_OUT_7)
@@ -47,6 +48,8 @@ typedef enum {
 typedef struct {
     int32_t der;
     int32_t izq;
+    float v_izq;
+    float v_der;
 } Step_t;
 
 #ifdef __cplusplus
@@ -58,10 +61,16 @@ extern "C"
 {
 #endif
 
+
 void configServos();
 void setSingleServoSpeed(uint32_t servo, float vel);
 void setServosSpeed(float vel);
-void mover_robot(uint32_t c);
+
+void mover_robot(int32_t c);
+void girar_robot(int32_t g);
+
+void mover_robot_v(int32_t c, float v);
+void girar_robot_v(int32_t g, float v_der, float v_izq);
 
 #ifdef __cplusplus
 }

@@ -204,7 +204,7 @@ all: ejercicio-FreeRTOS.out
 ejercicio-FreeRTOS.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: "$@"'
 	@echo 'Invoking: Arm Linker'
-	"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/bin/armcl" -mv7M4 --code_state=16 --float_support=FPv4SPD16 -me -O0 --define=ccs="ccs" --define=PART_TM4C123GH6PM --define=TARGET_IS_TM4C123_RB1 --define=WANT_CMDLINE_HISTORY --define=DEBUG -g --gcc --diag_warning=225 --diag_wrap=off --display_error_number --abi=eabi -z -m"ejercicio-FreeRTOS.map" --heap_size=0 --stack_size=2048 -i"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/lib" -i"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/include" --reread_libs --diag_wrap=off --display_error_number --warn_sections --xml_link_info="ejercicio-FreeRTOS_linkInfo.xml" --rom_model -o "ejercicio-FreeRTOS.out" $(ORDERED_OBJS)
+	"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/bin/armcl" -mv7M4 --code_state=16 --float_support=FPv4SPD16 -me -O0 --preinclude="C:/Users/cayet/Documents/Apuntes/4_SE/1Q/Microbotica/microbot/FreeRTOS/Source/include/FreeRTOS.h" --define=ccs="ccs" --define=PART_TM4C123GH6PM --define=TARGET_IS_TM4C123_RB1 --define=WANT_CMDLINE_HISTORY --define=DEBUG -g --gcc --diag_warning=225 --diag_wrap=off --display_error_number --abi=eabi -z -m"ejercicio-FreeRTOS.map" --heap_size=0 --stack_size=2048 -i"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/lib" -i"C:/ti/ccs1020/ccs/tools/compiler/ti-cgt-arm_20.2.2.LTS/include" --reread_libs --diag_wrap=off --display_error_number --warn_sections --xml_link_info="ejercicio-FreeRTOS_linkInfo.xml" --rom_model -o "ejercicio-FreeRTOS.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 
