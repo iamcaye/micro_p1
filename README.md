@@ -4,10 +4,10 @@ Escenario: tablero de 1x1 con un cuadrado negro en el centro.
 Objetivo: buscar cajas en el tablero y llevarlas al cuadrado negro del centro que podemos encontrarlo porque hay una torre.
 
 TODO:
-- [] Re-estructurar las tareas y separar las colas en tareas.
-- [] Caracterizar el sentor ak21 que servira para encontrar la torre central.
-- [] Realizar los calculos para que el robot coja las cajas mirando ya hacia la torre central.
-- [] Implementar el encoder inferior para detectar los bordes del tablero (EncoderTask).
+- [ ] Re-estructurar las tareas y separar las colas en tareas.
+- [ ] Caracterizar el sentor ak21 que servira para encontrar la torre central.
+- [ ] Realizar los calculos para que el robot coja las cajas mirando ya hacia la torre central.
+- [ ] Implementar el encoder inferior para detectar los bordes del tablero (EncoderTask).
 
 
 Tareas implementadas:
