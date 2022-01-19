@@ -29,8 +29,8 @@ extern "C"
 
 #define PERIOD_PWM 40000  // TODO: Ciclos de reloj para conseguir una señal periódica de 50Hz (según reloj de periférico usado)
 #define COUNT_1MS 2000  // TODO: Ciclos para amplitud de pulso de 1ms (max velocidad en un sentido)
-#define STOPCOUNT_L 2700  // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
-#define STOPCOUNT_R  2820 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
+#define STOPCOUNT_L 2750 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
+#define STOPCOUNT_R  2760 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
 #define COUNT_2MS 4000   // TODO: Ciclos para amplitud de pulso de 2ms (max velocidad en el otro sentido)
 #define NUM_STEPS 50    // Pasos para cambiar entre el pulso de 2ms al de 1ms
 #define CYCLE_INCREMENTS (abs(COUNT_1MS-COUNT_2MS))/NUM_STEPS  // Variacion de amplitud tras pulsacion
@@ -41,9 +41,10 @@ typedef enum {
     SERVO_TURN_LEFT,
     SERVO_TURN_RIGHT,
     SERVO_ROTATE,
-    SERVO_CRASH,
+    SERVO_BOX,
+    SERVO_NO_BOX,
     // ...
-};
+} SERVO_MODES;
 
 typedef struct {
     int32_t der;
@@ -71,6 +72,7 @@ void girar_robot(int32_t g);
 
 void mover_robot_v(int32_t c, float v);
 void girar_robot_v(int32_t g, float v_der, float v_izq);
+void hacer_mov(int32_t pasos_izq, int32_t pasos_der);
 
 #ifdef __cplusplus
 }

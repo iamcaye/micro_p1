@@ -115,3 +115,10 @@ void girar_robot_v(int32_t g, float v_izq, float v_der){
     }
     xQueueSend(q_steps, (void *)&mov, 0);
 }
+
+void hacer_mov(int32_t pasos_izq, int32_t pasos_der){
+    Step_t pasos;
+    pasos.der = pasos_der;
+    pasos.izq = pasos_izq;
+    xQueueSend(q_steps, (void *)&pasos, 0);
+}

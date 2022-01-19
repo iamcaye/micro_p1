@@ -171,119 +171,6 @@ static int Cmd_help(int argc, char *argv[])
     return(0);
 }
 
-// ==============================================================================
-// Implementa el comando "LED"
-// ==============================================================================
-static int Cmd_led(int argc, char *argv[])
-{
-	if (argc != 2)
-	{
-		//Si los parametros no son suficientes o son demasiados, muestro la ayuda
-		UARTprintf(" led [on|off]\r\n");
-	}
-	else
-	{
-		//seconds = strtoul(argv[1], NULL, 10);
-
-		if (0==strncmp( argv[1], "on",2))
-		{
-			UARTprintf("Enciendo el LED\r\n");
-			GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3,GPIO_PIN_3);
-		}
-		else if (0==strncmp( argv[1], "off",3))
-		{
-			UARTprintf("Apago el LED\r\n");
-			GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3,0);
-		}
-		else
-		{
-			//Si el parametro no es correcto, muestro la ayuda
-			UARTprintf(" led [on|off]\r\n");
-		}
-
-	}
-
-
-    return 0;
-}
-
-
-// ==============================================================================
-// Implementa el comando "MODE"
-// ==============================================================================
-static int Cmd_mode(int argc, char *argv[])
-{
-	if (argc != 2)
-	{
-		//Si los parametros no son suficientes o son demasiados, muestro la ayuda
-		UARTprintf(" mode [gpio|pwm]\r\n");
-	}
-	else
-	{
-		if (0==strncmp( argv[1], "gpio",4))
-		{
-			UARTprintf("cambio a modo GPIO\r\n");
-			RGBDisable();
-			GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
-		}
-		else if (0==strncmp( argv[1], "pwm",3))
-		{
-			UARTprintf("Cambio a modo PWM (rgb)\r\n");
-			RGBEnable();
-		}
-		else
-		{
-			//Si el parametro no es correcto, muestro la ayuda
-			UARTprintf(" mode [gpio|pwm]\r\n");
-		}
-	}
-
-
-    return 0;
-}
-
-// ==============================================================================
-// Implementa el comando "RGB"
-// ==============================================================================
-static int Cmd_rgb(int argc, char *argv[])
-{
-	uint32_t arrayRGB[3];
-
-	if (argc != 4)
-	{
-		//Si los parï¿½metros no son suficientes, muestro la ayuda
-		UARTprintf(" rgb [red] [green] [blue]\r\n");
-	}
-	else
-	{
-
-		// Pregunta: ¿¿ES Esto CORRECTO???
-
-		arrayRGB[0]=argv[1]; //arrayRGB[0]=(uint32_t)argv[1]; //¿Y esto?
-		arrayRGB[1]=argv[2]; //arrayRGB[1]=(uint32_t)argv[2]; //¿Y esto?
-		arrayRGB[2]=argv[3]; //arrayRGB[2]=(uint32_t)argv[3]; //¿Y esto?
-
-
-		//arrayRGB[0]=strtoul(argv[1], NULL, 10); //<<8;
-		//arrayRGB[1]=strtoul(argv[2], NULL, 10); //<<8;
-		//arrayRGB[2]=strtoul(argv[3], NULL, 10); //<<8;
-
-		if ((arrayRGB[0]>=65535)||(arrayRGB[1]>=65535)||(arrayRGB[2]>=65535))
-		{
-
-			UARTprintf(" \r\n");
-		}
-		else{
-			RGBColorSet(arrayRGB);
-		}
-
-	}
-	
-    
-    return 0;
-}
-
-
 static int Cmd_servos(int argc, char *argv[]){
     uint8_t res = 0;
     if(argc < 2){
@@ -318,9 +205,6 @@ tCmdLineEntry g_psCmdTable[] =
     { "help",     Cmd_help,      "     : Lista de comandos" },
     { "?",        Cmd_help,      "        : lo mismo que help" },
     { "cpu",      Cmd_cpu,       "      : Muestra el uso de  CPU " },
-    //{ "led",  	  Cmd_led,       "      : Apaga y enciende el led verde" },
-    //{ "mode",  	  Cmd_mode,       "      : Cambia los pines PF1, PF2 y PF3 entre modo GPIO y modo PWM (rgb)" },
-    //{ "rgb",  	  Cmd_rgb,       "      : Establece el color RGB" },
     { "free",     Cmd_free,      "     : Muestra la memoria libre" },
 #if ( configUSE_TRACE_FACILITY == 1 )
 	{ "tasks",    Cmd_tasks,     "    : Muestra informacion de las tareas" },

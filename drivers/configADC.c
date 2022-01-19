@@ -37,8 +37,14 @@ void configADC_IniciaADC(void)
 				//HABILITAMOS EL GPIOE
 				SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
 				SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOE);
+
+				//HABILITAMOS EL GPIOB
+				SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+				SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOB);
+
 				// Enable pin PE4 for ADC AIN0|AIN1|AIN2|AIN3
 				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_4);
+				GPIOPinTypeADC(GPIO_PORTB_BASE, GPIO_PIN_4);
 
 
 				//CONFIGURAR SECUENCIADOR 1
@@ -49,12 +55,13 @@ void configADC_IniciaADC(void)
 
 				SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
 				TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
-				uint32_t ui32Period = SysCtlClockGet()/2; // Interrupts evrey half second
+				uint32_t ui32Period = SysCtlClockGet()/2; // Interrupts evrey quarter of a second
 				TimerLoadSet(TIMER0_BASE, TIMER_A, ui32Period -1);
 			    TimerControlTrigger(TIMER0_BASE, TIMER_A, true);
 
 				ADCSequenceConfigure(ADC0_BASE,1,ADC_TRIGGER_TIMER,0);	//Disparo timer
-				ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH9|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH9);	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH10|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
 				ADCSequenceEnable(ADC0_BASE,1); //ACTIVO LA SECUENCIA
 
 				//Habilita las interrupciones
@@ -65,7 +72,7 @@ void configADC_IniciaADC(void)
 				TimerEnable(TIMER0_BASE, TIMER_A);
 
 				//Creamos una cola de mensajes para la comunicacion entre la ISR y la tara que llame a configADC_LeeADC(...)
-				cola_adc=xQueueCreate(8,sizeof(uint32_t));
+				cola_adc=xQueueCreate(8,2*sizeof(uint32_t));
 				if (cola_adc==NULL)
 				{
 					while(1);
@@ -82,7 +89,7 @@ void configADC_ISR(void)
 {
 	portBASE_TYPE higherPriorityTaskWoken=pdFALSE;
 
-	uint32_t leido;
+	uint32_t leido[2] = {0,0};
 	ADCIntClear(ADC0_BASE,1);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
 	ADCSequenceDataGet(ADC0_BASE,1,(uint32_t *)&leido);//COGEMOS LOS DATOS GUARDADOS
 

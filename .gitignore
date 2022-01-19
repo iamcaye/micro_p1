@@ -1,3 +1,7 @@
+Debug/
+Debug/ejercicio-FreeRTOS_linkInfo.xml
+Debug/ejercicio-FreeRTOS.map
+
 # Prerequisites
 *.d
 
@@ -30,4 +34,3 @@
 *.exe
 *.out
 *.app
-/Debug
