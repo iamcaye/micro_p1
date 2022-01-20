@@ -40,6 +40,7 @@ typedef enum {
     STATUS_BOX_FOUND,
     STATUS_FINDING_CENTER,
     STATUS_CENTER_FOUND,
+    STATUS_GO_BACK,
 } MACHINE_STATUS;
 
 typedef enum {
@@ -302,13 +303,16 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
     while(1){
         q = xQueueSelectFromSet(ordenes_set, portMAX_DELAY);
         if(q == cola_adc){
-            i = j = 0;
+            i = 0;
+            j = 0;
            xQueueReceive(cola_adc, (void *)&r_adc, 0);
 
            // Obtener distancia captada por el sensor gp41
            while((i < g_n41) && (r_adc[0] < g_v41[i])){
                i++;
            }
+
+           UARTprintf("Tensiones: %d \t %d \n", r_adc[0], r_adc[1]);
 
            if(i < g_n41){
                UARTprintf("Sensor ak41: %d\n", g_d41[i]);
@@ -329,11 +333,13 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
            }
 
            if(j < g_n21){
-               UARTprintf("Sensor ak21: %d\n", g_d21[j]);
+               UARTprintf("Sensor ak21: %d\n", g_d21[i]);
                if((g_status == STATUS_FINDING_CENTER) && (g_d21[j] > 14)){
                    g_event = EV_CENTER;
                    xQueueReset(q_steps);
                    xSemaphoreGive(s_control);
+               } else if ((g_status == STATUS_CENTER_FOUND) && (g_d21[j] < 14)){
+                   g_event = EV_ON_CENTER;
                }
            }
         } else if(q == s_suelo) {
@@ -358,6 +364,8 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                 if(g_event == EV_HAS_BOX){
                     g_status = STATUS_FINDING_CENTER;
                     girar_robot(360);
+                } else if (g_event == EV_SUELO){
+                    girar_robot(120);
                 }
                 break;
             case STATUS_FINDING_CENTER:
@@ -367,15 +375,13 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                 }
                 break;
             case STATUS_CENTER_FOUND:
-                if(g_event == EV_SUELO){
+                if(g_event == EV_ON_CENTER){
                     hacer_mov(-historial[ultimo_mov].izq, -historial[ultimo_mov].der);
                     hacer_mov(-historial[ultimo_mov-1].izq, -historial[ultimo_mov-1].der);
+                    g_status = STATUS_FINDING_BOX;
                 }
                 break;
             default:
-                if(g_event == EV_SUELO){
-                    girar_robot(90);
-                }
                 break;
         }
     }

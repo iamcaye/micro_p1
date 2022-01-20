@@ -38,13 +38,10 @@ void configADC_IniciaADC(void)
 				SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
 				SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOE);
 
-				//HABILITAMOS EL GPIOB
-				SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
-				SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOB);
 
 				// Enable pin PE4 for ADC AIN0|AIN1|AIN2|AIN3
 				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_4);
-				GPIOPinTypeADC(GPIO_PORTB_BASE, GPIO_PIN_4);
+				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_5);
 
 
 				//CONFIGURAR SECUENCIADOR 1
@@ -61,7 +58,7 @@ void configADC_IniciaADC(void)
 
 				ADCSequenceConfigure(ADC0_BASE,1,ADC_TRIGGER_TIMER,0);	//Disparo timer
 				ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH9);	//La ultima muestra provoca la interrupcion
-				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH10|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH8|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
 				ADCSequenceEnable(ADC0_BASE,1); //ACTIVO LA SECUENCIA
 
 				//Habilita las interrupciones
@@ -89,9 +86,9 @@ void configADC_ISR(void)
 {
 	portBASE_TYPE higherPriorityTaskWoken=pdFALSE;
 
-	uint32_t leido[2] = {0,0};
+	uint32_t leido[2];
 	ADCIntClear(ADC0_BASE,1);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
-	ADCSequenceDataGet(ADC0_BASE,1,(uint32_t *)&leido);//COGEMOS LOS DATOS GUARDADOS
+	ADCSequenceDataGet(ADC0_BASE,1,leido);//COGEMOS LOS DATOS GUARDADOS
 
 	//Pasamos de 32 bits a 16 (el conversor es de 12 bits, así que sólo son significativos los bits del 0 al 11)
 	/*finales.chan1=leidas.chan1;
@@ -100,6 +97,6 @@ void configADC_ISR(void)
 	finales.chan4=leidas.chan4;*/
 
 	//Guardamos en la cola
-	xQueueSendFromISR(cola_adc,&leido,&higherPriorityTaskWoken);
+	xQueueSendFromISR(cola_adc,(void *)&leido,&higherPriorityTaskWoken);
 	portEND_SWITCHING_ISR(higherPriorityTaskWoken);
 }
