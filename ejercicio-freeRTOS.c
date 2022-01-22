@@ -50,6 +50,7 @@ typedef enum {
     EV_CENTER,
     EV_ON_CENTER,
     EV_SUELO,
+    EV_NO_CENTER
 } MACHINE_EVENTS;
 
 #define CTL_TASKPRIO tskIDLE_PRIORITY + 1
@@ -261,14 +262,18 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
         xQueueReceive(q_steps, (void *)&paso, portMAX_DELAY);
         if(paso.izq == 0){
             setSingleServoSpeed(LEFT_SERVO, 0.0f);
-        } else {
+        } else if (paso.izq > 0){
             setSingleServoSpeed(LEFT_SERVO, 0.2f);
+        } else {
+            setSingleServoSpeed(LEFT_SERVO, -0.2f);
         }
 
         if(paso.der == 0){
             setSingleServoSpeed(RIGHT_SERVO, 0.0f);
-        } else {
+        } else if (paso.der > 0){
             setSingleServoSpeed(RIGHT_SERVO, 0.2f);
+        } else {
+            setSingleServoSpeed(RIGHT_SERVO, -0.2f);
         }
 
         while(paso.der > 0 || paso.izq > 0){
@@ -298,24 +303,23 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
 static portTASK_FUNCTION(OrdenesTask,pvParameters)
 {
     QueueSetMemberHandle_t q;
-    uint32_t r_adc[2] = {0,0};
+    MuestrasLeidasADC r_adc;
     uint32_t i = 0, j = 0;
     while(1){
         q = xQueueSelectFromSet(ordenes_set, portMAX_DELAY);
         if(q == cola_adc){
-            i = 0;
-            j = 0;
            xQueueReceive(cola_adc, (void *)&r_adc, 0);
 
+           i = 0;
            // Obtener distancia captada por el sensor gp41
-           while((i < g_n41) && (r_adc[0] < g_v41[i])){
+           while((i < g_n41) && (r_adc.chan1 < g_v41[i])){
                i++;
            }
 
-           UARTprintf("Tensiones: %d \t %d \n", r_adc[0], r_adc[1]);
+           UARTprintf("Tensiones: %d \t %d\n", r_adc.chan1, r_adc.chan4);
 
            if(i < g_n41){
-               UARTprintf("Sensor ak41: %d\n", g_d41[i]);
+               UARTprintf("Sensor gp41: %d\n", g_d41[i]);
                if((g_status == STATUS_FINDING_BOX) && (g_d41[i] > 4)){
                    g_event = EV_BOX;
                    xQueueReset(q_steps);
@@ -327,13 +331,14 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                g_event = EV_NO_BOX;
            }
 
+           j = 0;
            // Obtener distancia captada por el sensor gp21
-           while((j < g_n21) && (r_adc[1] < g_v21[j])){
+           while((j < g_n21) && (r_adc.chan4 < g_v21[j])){
                j++;
            }
 
            if(j < g_n21){
-               UARTprintf("Sensor ak21: %d\n", g_d21[i]);
+               UARTprintf("Sensor gp21: %d\n", g_d21[j]);
                if((g_status == STATUS_FINDING_CENTER) && (g_d21[j] > 14)){
                    g_event = EV_CENTER;
                    xQueueReset(q_steps);
@@ -341,6 +346,8 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                } else if ((g_status == STATUS_CENTER_FOUND) && (g_d21[j] < 14)){
                    g_event = EV_ON_CENTER;
                }
+           } else {
+               g_event = EV_NO_CENTER;
            }
         } else if(q == s_suelo) {
             xSemaphoreTake(s_suelo, 0);
@@ -357,7 +364,8 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     g_status = STATUS_BOX_FOUND;
                     mover_robot(g_d41[i]-4);
                 } else if(g_event == EV_SUELO){
-                    girar_robot(90);
+                    mover_robot(-5);
+                    girar_robot(120);
                 }
                 break;
             case STATUS_BOX_FOUND:
@@ -366,18 +374,22 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     girar_robot(360);
                 } else if (g_event == EV_SUELO){
                     girar_robot(120);
+                    g_status == STATUS_FINDING_BOX;
                 }
                 break;
             case STATUS_FINDING_CENTER:
                 if(g_event == EV_CENTER){
                     g_status = STATUS_CENTER_FOUND;
                     mover_robot(g_d21[j]-12); // TODO: poner bien la distancia que tiene que movese para no comerse el centro
+                } else if(g_event == EV_NO_CENTER){
+                    girar_robot(360);
                 }
                 break;
             case STATUS_CENTER_FOUND:
                 if(g_event == EV_ON_CENTER){
                     hacer_mov(-historial[ultimo_mov].izq, -historial[ultimo_mov].der);
                     hacer_mov(-historial[ultimo_mov-1].izq, -historial[ultimo_mov-1].der);
+                    vTaskDelay()
                     g_status = STATUS_FINDING_BOX;
                 }
                 break;
@@ -522,7 +534,7 @@ int main(void)
         while(1);
     }
 
-    ordenes_set = xQueueCreateSet(11);
+    ordenes_set = xQueueCreateSet(9);
     if(ordenes_set == NULL){
         while(1);
     }
@@ -535,10 +547,10 @@ int main(void)
         while(1);
     }
 
-    if((xTaskCreate(CTLTask, (portCHAR *)"CTL Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
+    /*if((xTaskCreate(CTLTask, (portCHAR *)"CTL Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {
         while(1);
-    }
+    }*/
 
     if((xTaskCreate(EncoderTask, (portCHAR *)"Encoder Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {

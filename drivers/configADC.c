@@ -40,8 +40,7 @@ void configADC_IniciaADC(void)
 
 
 				// Enable pin PE4 for ADC AIN0|AIN1|AIN2|AIN3
-				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_4);
-				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_5);
+				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_4|GPIO_PIN_5);
 
 
 				//CONFIGURAR SECUENCIADOR 1
@@ -58,7 +57,9 @@ void configADC_IniciaADC(void)
 
 				ADCSequenceConfigure(ADC0_BASE,1,ADC_TRIGGER_TIMER,0);	//Disparo timer
 				ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH9);	//La ultima muestra provoca la interrupcion
-				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH8|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH9);	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,2,ADC_CTL_CH8);	//La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,1,3,ADC_CTL_CH8|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
 				ADCSequenceEnable(ADC0_BASE,1); //ACTIVO LA SECUENCIA
 
 				//Habilita las interrupciones
@@ -69,7 +70,7 @@ void configADC_IniciaADC(void)
 				TimerEnable(TIMER0_BASE, TIMER_A);
 
 				//Creamos una cola de mensajes para la comunicacion entre la ISR y la tara que llame a configADC_LeeADC(...)
-				cola_adc=xQueueCreate(8,2*sizeof(uint32_t));
+				cola_adc=xQueueCreate(8,sizeof(MuestrasLeidasADC));
 				if (cola_adc==NULL)
 				{
 					while(1);
@@ -86,9 +87,9 @@ void configADC_ISR(void)
 {
 	portBASE_TYPE higherPriorityTaskWoken=pdFALSE;
 
-	uint32_t leido[2];
+	MuestrasLeidasADC leido;
 	ADCIntClear(ADC0_BASE,1);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
-	ADCSequenceDataGet(ADC0_BASE,1,leido);//COGEMOS LOS DATOS GUARDADOS
+	ADCSequenceDataGet(ADC0_BASE,1,(uint32_t *)&leido);//COGEMOS LOS DATOS GUARDADOS
 
 	//Pasamos de 32 bits a 16 (el conversor es de 12 bits, así que sólo son significativos los bits del 0 al 11)
 	/*finales.chan1=leidas.chan1;
