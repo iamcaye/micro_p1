@@ -309,7 +309,6 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     xSemaphoreGive(s_control);
                     mover_robot(-10);
                     girar_robot(180);
-                    vTaskDelay(1.5*configTICK_RATE_HZ);
                 }
                 break;
             case STATUS_BOX_FOUND:
@@ -324,7 +323,6 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     xSemaphoreGive(s_control);
                     mover_robot(-10);
                     girar_robot(-90);
-                    vTaskDelay(1.5*configTICK_RATE_HZ);
                     xQueueReset(cola_adc);
                     g_status = STATUS_FINDING_BOX;
                     UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_BOX\n");
