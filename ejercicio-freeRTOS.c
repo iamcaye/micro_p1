@@ -44,13 +44,16 @@ typedef enum {
 } MACHINE_STATUS;
 
 typedef enum {
+    NO_EVENT,
     EV_BOX,
-    EV_HAS_BOX,
     EV_NO_BOX,
+    EV_DONT_HAVE_BOX,
+    EV_HAS_BOX,
     EV_CENTER,
     EV_ON_CENTER,
+    EV_NOT_ON_CENTER,
     EV_SUELO,
-    EV_NO_CENTER
+    EV_NO_CENTER,
 } MACHINE_EVENTS;
 
 #define CTL_TASKPRIO tskIDLE_PRIORITY + 1
@@ -64,7 +67,8 @@ QueueHandle_t servos_ctl, servos_mode, cola_adc, q_encoders, q_mover, q_girar;
 QueueSetHandle_t servos_set, move_set, ordenes_set;
 extern QueueHandle_t q_steps;
 SemaphoreHandle_t s_der, s_izq, s_control, s_suelo;
-uint32_t g_status = STATUS_FINDING_BOX, g_event;
+MACHINE_STATUS g_status = STATUS_FINDING_BOX;
+MACHINE_EVENTS g_event;
 
 uint32_t g_d41[] = {4,6,8,10,12,14,16,18,20,22,24,26,28,30};
 uint32_t g_v41[] = {2810,2143,1707,1328,1257,972,901,759,687,608,567,493,464,438};
@@ -74,8 +78,6 @@ uint32_t g_d21[] = {10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,50,
 uint32_t g_v21[] = {2444,2041,1771,1558,1400,1294,1203,1140,1083,1029,997,962,892,823,791,671,601,568,538,512,478,419,388};
 uint32_t g_n21 = 20;
 
-uint8_t ultimo_mov = 0;
-Step_t historial[10] = {[0 ... 9] = NULL};
 //*****************************************************************************
 //
 // The error routine that is called if the driver library encounters an error.
@@ -105,19 +107,10 @@ void botones_ISR(void){
     portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 }
 
-void whisker_ISR (void){
-    BaseType_t xHigherPriorityTaskWoken=pdFALSE;
-    uint8_t res = SERVO_BOX;
-    int r = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5);
-    GPIOIntClear(GPIO_PORTB_BASE, GPIO_PIN_5);
-    xQueueSendFromISR(servos_mode, (void *)&res, &xHigherPriorityTaskWoken);
-    portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
-}
-
  void encoder_ISR (void) {
     BaseType_t xHigherPriorityTaskWoken=pdFALSE;
-    uint8_t r = GPIOPinRead(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
-    GPIOIntClear(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    uint8_t r = GPIOPinRead(GPIO_PORTA_BASE, (GPIO_PIN_4|GPIO_PIN_3|GPIO_PIN_6));
+    GPIOIntClear(GPIO_PORTA_BASE, (GPIO_PIN_4|GPIO_PIN_3|GPIO_PIN_6));
     xQueueSendFromISR(q_encoders, (void *)&r, &xHigherPriorityTaskWoken);
     portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
  }
@@ -168,73 +161,6 @@ void vApplicationIdleHook (void )
 //
 //*****************************************************************************
 
-static portTASK_FUNCTION(CTLTask,pvParameters)
-{
-    uint32_t v_r = 0, v_l = 0, r = 0;
-    uint8_t res = 0;
-    QueueSetMemberHandle_t q;
-    while(1){
-        q = xQueueSelectFromSet(servos_set, portMAX_DELAY);
-        if(q == servos_ctl){
-            xQueueReceive(servos_ctl, (void *)&r, 0);
-
-            v_l = PWMPulseWidthGet(PWM1_BASE, LEFT_SERVO);
-            v_r = PWMPulseWidthGet(PWM1_BASE, RIGHT_SERVO);
-            if((r & GPIO_PIN_0) && (v_l < COUNT_2MS) && (v_r > COUNT_1MS)){
-                //Aceleramos
-                v_l += CYCLE_INCREMENTS;
-                v_r -= CYCLE_INCREMENTS;
-            } else if ((r & GPIO_PIN_4) && (v_r < COUNT_2MS) && (v_l > COUNT_1MS)){
-                // Frenamos
-                v_l -= CYCLE_INCREMENTS;
-                v_r += CYCLE_INCREMENTS;
-            }
-
-            if(g_servo_mode == SERVO_STRAIGHT){
-                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
-                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_r);
-            } else if(g_servo_mode == SERVO_TURN_LEFT){
-                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_r);
-            } else if(g_servo_mode == SERVO_TURN_RIGHT){
-                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
-            } else if (g_servo_mode == SERVO_ROTATE){
-                PWMPulseWidthSet(PWM1_BASE, LEFT_SERVO, v_l);
-                PWMPulseWidthSet(PWM1_BASE, RIGHT_SERVO, v_l);
-            }
-        } else if (q == servos_mode){
-            xQueueReceive(servos_mode, (void *)&res, 0);
-            g_servo_mode = res;
-            switch(g_servo_mode){
-                case SERVO_STRAIGHT:
-                    setServosSpeed(0.3f);
-                    break;
-
-                case SERVO_TURN_LEFT:
-                    setSingleServoSpeed(LEFT_SERVO, 0.1f);
-                    setSingleServoSpeed(RIGHT_SERVO, 0.5f);
-                    break;
-
-                case SERVO_TURN_RIGHT:
-                    setSingleServoSpeed(RIGHT_SERVO, 0.1f);
-                    setSingleServoSpeed(LEFT_SERVO, 0.5f);
-                    break;
-
-                case SERVO_ROTATE:
-                    setSingleServoSpeed(RIGHT_SERVO, 0.1f);
-                    setSingleServoSpeed(LEFT_SERVO, -0.1f);
-                    break;
-
-                case SERVO_BOX:
-                    setServosSpeed(0.0f);
-                    break;
-                default:
-                    break;
-
-            }
-        }
-    }
-}
-
 static portTASK_FUNCTION(EncoderTask,pvParameters)
 {
     uint8_t r = 0;
@@ -247,6 +173,10 @@ static portTASK_FUNCTION(EncoderTask,pvParameters)
 
         if(((r & GPIO_PIN_6) && !(GPIO_PIN_6 & last)) || (!(r & GPIO_PIN_6) && (GPIO_PIN_6 & last))){
             xSemaphoreGive(s_der);
+        }
+
+        if((!(r & GPIO_PIN_4) && (GPIO_PIN_4 & last))){
+            xSemaphoreGive(s_suelo);
         }
 
         last = r;
@@ -276,25 +206,26 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
             setSingleServoSpeed(RIGHT_SERVO, -0.2f);
         }
 
+        if(paso.der < 0){
+            paso.der = -paso.der;
+        }
+
+        if(paso.izq < 0){
+            paso.izq = -paso.izq;
+        }
+
         while(paso.der > 0 || paso.izq > 0){
             q = xQueueSelectFromSet(move_set, portMAX_DELAY);
             if(q == s_der){
                 xSemaphoreTake(s_der, 0);
                 paso.der -= 1;
-                historial[ultimo_mov].der++;
             }else if(q == s_izq){
                 xSemaphoreTake(s_izq, 0);
                 paso.izq -= 1;
-                historial[ultimo_mov].izq++;
             }else if(q == s_control) {
                 xSemaphoreTake(s_control, 0);
                 break;
             }
-        }
-
-        ultimo_mov++;
-        if(ultimo_mov == 10){
-            ultimo_mov = 0;
         }
         setServosSpeed(0.0f);
     }
@@ -303,93 +234,143 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
 static portTASK_FUNCTION(OrdenesTask,pvParameters)
 {
     QueueSetMemberHandle_t q;
-    MuestrasLeidasADC r_adc;
+    MuestrasADC r_adc;
     uint32_t i = 0, j = 0;
     while(1){
         q = xQueueSelectFromSet(ordenes_set, portMAX_DELAY);
         if(q == cola_adc){
            xQueueReceive(cola_adc, (void *)&r_adc, 0);
-
+           g_event = NO_EVENT;
            i = 0;
            // Obtener distancia captada por el sensor gp41
            while((i < g_n41) && (r_adc.chan1 < g_v41[i])){
                i++;
            }
 
-           UARTprintf("Tensiones: %d \t %d\n", r_adc.chan1, r_adc.chan4);
+           UARTprintf("Tensiones: %d \t %d\n", r_adc.chan1, r_adc.chan2);
 
            if(i < g_n41){
-               UARTprintf("Sensor gp41: %d\n", g_d41[i]);
+               //UARTprintf("Sensor gp41: %d\n", g_d41[i]);
                if((g_status == STATUS_FINDING_BOX) && (g_d41[i] > 4)){
                    g_event = EV_BOX;
-                   xQueueReset(q_steps);
-                   xSemaphoreGive(s_control);
-               } else if((g_d41[i] <= 4) && (g_status == STATUS_BOX_FOUND)){
-                   g_event = EV_HAS_BOX;
+               } else if((g_status == STATUS_BOX_FOUND)){
+                  if(g_d41[i] <= 4){
+                      g_event = EV_HAS_BOX;
+                  } else {
+                      g_event = EV_DONT_HAVE_BOX;
+                  }
                }
            } else {
                g_event = EV_NO_BOX;
            }
 
            j = 0;
-           // Obtener distancia captada por el sensor gp21
-           while((j < g_n21) && (r_adc.chan4 < g_v21[j])){
-               j++;
-           }
-
-           if(j < g_n21){
-               UARTprintf("Sensor gp21: %d\n", g_d21[j]);
-               if((g_status == STATUS_FINDING_CENTER) && (g_d21[j] > 14)){
-                   g_event = EV_CENTER;
-                   xQueueReset(q_steps);
-                   xSemaphoreGive(s_control);
-               } else if ((g_status == STATUS_CENTER_FOUND) && (g_d21[j] < 14)){
-                   g_event = EV_ON_CENTER;
+           if(g_event == NO_EVENT){
+               // Obtener distancia captada por el sensor gp21
+               while((j < g_n21) && (r_adc.chan2 < g_v21[j])){
+                   j++;
                }
-           } else {
-               g_event = EV_NO_CENTER;
+
+               if(j < g_n21){
+                   UARTprintf("Sensor gp21: %d\n", g_d21[j]);
+                   if((g_status == STATUS_FINDING_CENTER) && (g_d21[j] > 24)){
+                       g_event = EV_CENTER;
+                   } else if((g_status == STATUS_CENTER_FOUND) && (g_d21[j] > 24)){
+                       g_event = EV_NOT_ON_CENTER;
+                   }
+               } else if (g_status == STATUS_FINDING_CENTER){
+                   g_event = EV_NO_CENTER;
+               }
            }
         } else if(q == s_suelo) {
             xSemaphoreTake(s_suelo, 0);
-            g_event = EV_SUELO;
+            if(g_status != STATUS_CENTER_FOUND){
+                g_event = EV_SUELO;
+            } else {
+                g_event = EV_ON_CENTER;
+            }
         }
 
         switch(g_status){
             case STATUS_FINDING_BOX:
                 if(g_event == EV_NO_BOX){
                     g_status = STATUS_FINDING_BOX;
-                    mover_robot(30);
+                    mover_robot(10);
                     girar_robot(360);
+                    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
                 } else if (g_event == EV_BOX){
+                    UARTprintf("STATUS_FINDING_BOX -> STATUS_BOX_FOUND\n");
                     g_status = STATUS_BOX_FOUND;
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
                     mover_robot(g_d41[i]-4);
                 } else if(g_event == EV_SUELO){
-                    mover_robot(-5);
-                    girar_robot(120);
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    mover_robot(-10);
+                    girar_robot(180);
+                    vTaskDelay(1.5*configTICK_RATE_HZ);
                 }
                 break;
             case STATUS_BOX_FOUND:
                 if(g_event == EV_HAS_BOX){
+                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_CENTER\n");
                     g_status = STATUS_FINDING_CENTER;
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
                     girar_robot(360);
                 } else if (g_event == EV_SUELO){
-                    girar_robot(120);
-                    g_status == STATUS_FINDING_BOX;
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    mover_robot(-10);
+                    girar_robot(-90);
+                    vTaskDelay(1.5*configTICK_RATE_HZ);
+                    xQueueReset(cola_adc);
+                    g_status = STATUS_FINDING_BOX;
+                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_BOX\n");
+                } else if (g_event == EV_DONT_HAVE_BOX){
+                    mover_robot(g_d41[i]);
+                } else if(g_event == EV_NO_BOX){
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    g_status = STATUS_FINDING_BOX;
                 }
                 break;
             case STATUS_FINDING_CENTER:
                 if(g_event == EV_CENTER){
+                    UARTprintf("STATUS_FINDING_CENTER -> STATUS_CENTER_FOUND\n");
+                    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
                     g_status = STATUS_CENTER_FOUND;
-                    mover_robot(g_d21[j]-12); // TODO: poner bien la distancia que tiene que movese para no comerse el centro
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    mover_robot(g_d21[j]); // TODO: poner bien la distancia que tiene que movese para no comerse el centro
                 } else if(g_event == EV_NO_CENTER){
                     girar_robot(360);
+                } else if (g_event == EV_NO_BOX){
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    g_status = STATUS_FINDING_BOX;
                 }
                 break;
             case STATUS_CENTER_FOUND:
                 if(g_event == EV_ON_CENTER){
-                    hacer_mov(-historial[ultimo_mov].izq, -historial[ultimo_mov].der);
-                    hacer_mov(-historial[ultimo_mov-1].izq, -historial[ultimo_mov-1].der);
-                    vTaskDelay()
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                    mover_robot(-10);
+                    girar_robot(180);
+                    vTaskDelay(1.5*configTICK_RATE_HZ);
+                    xQueueReset(cola_adc);
+                    g_status = STATUS_FINDING_BOX;
+                    UARTprintf("STATUS_CENTER_FOUND -> STATUS_FINDING_BOX\n");
+                } else if(g_event == EV_NOT_ON_CENTER){
+                    mover_robot(g_d21[j]);
+                } else if (g_event == EV_NO_CENTER){
+                    g_status = STATUS_FINDING_CENTER;
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
+                } else if (g_event == EV_NO_BOX){
+                    xQueueReset(q_steps);
+                    xSemaphoreGive(s_control);
                     g_status = STATUS_FINDING_BOX;
                 }
                 break;
@@ -461,11 +442,11 @@ int main(void)
     // Configuracion de los encoders (PIN A3,5,6)
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOA);
-    GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, (GPIO_PIN_4|GPIO_PIN_3|GPIO_PIN_6));
 
-    GPIOIntTypeSet(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6), GPIO_BOTH_EDGES);
+    GPIOIntTypeSet(GPIO_PORTA_BASE, (GPIO_PIN_4|GPIO_PIN_3|GPIO_PIN_6), GPIO_BOTH_EDGES);
     MAP_IntPrioritySet(INT_GPIOA, configMAX_SYSCALL_INTERRUPT_PRIORITY);
-    GPIOIntEnable(GPIO_PORTA_BASE, (GPIO_PIN_3|GPIO_PIN_6));
+    GPIOIntEnable(GPIO_PORTA_BASE, (GPIO_PIN_4|GPIO_PIN_3|GPIO_PIN_6));
     IntEnable(INT_GPIOA);
 
     s_der = xSemaphoreCreateBinary();
@@ -546,11 +527,6 @@ int main(void)
     if(xQueueAddToSet(s_suelo, ordenes_set) != pdPASS){
         while(1);
     }
-
-    /*if((xTaskCreate(CTLTask, (portCHAR *)"CTL Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
-    {
-        while(1);
-    }*/
 
     if((xTaskCreate(EncoderTask, (portCHAR *)"Encoder Task", CTL_STACKSIZE, NULL, CTL_TASKPRIO, NULL) != pdTRUE))
     {

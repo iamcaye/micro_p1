@@ -30,7 +30,7 @@ extern "C"
 #define PERIOD_PWM 40000  // TODO: Ciclos de reloj para conseguir una señal periódica de 50Hz (según reloj de periférico usado)
 #define COUNT_1MS 2000  // TODO: Ciclos para amplitud de pulso de 1ms (max velocidad en un sentido)
 #define STOPCOUNT_L 2750 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
-#define STOPCOUNT_R  2760 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
+#define STOPCOUNT_R  2800 // TODO: Ciclos para amplitud de pulso de parada (1.52ms)
 #define COUNT_2MS 4000   // TODO: Ciclos para amplitud de pulso de 2ms (max velocidad en el otro sentido)
 #define NUM_STEPS 50    // Pasos para cambiar entre el pulso de 2ms al de 1ms
 #define CYCLE_INCREMENTS (abs(COUNT_1MS-COUNT_2MS))/NUM_STEPS  // Variacion de amplitud tras pulsacion

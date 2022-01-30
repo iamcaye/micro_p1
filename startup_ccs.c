@@ -63,7 +63,6 @@ extern void vPortSVCHandler(void);
 extern void xPortSysTickHandler(void);
 extern void UARTStdioIntHandler(void);
 extern void botones_ISR(void);
-extern void whisker_ISR (void);
 extern void configADC_ISR(void);
 extern void encoder_ISR(void);
 
@@ -95,7 +94,7 @@ void (* const g_pfnVectors[])(void) =
     xPortPendSVHandler,                     // The PendSV handler
     xPortSysTickHandler,                    // The SysTick handler
     encoder_ISR,                      // GPIO Port A
-    whisker_ISR,                      // GPIO Port B
+    IntDefaultHandler,                      // GPIO Port B
     IntDefaultHandler,                      // GPIO Port C
     IntDefaultHandler,                      // GPIO Port D
     IntDefaultHandler,                      // GPIO Port E
@@ -108,8 +107,8 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // PWM Generator 1
     IntDefaultHandler,                      // PWM Generator 2
     IntDefaultHandler,                      // Quadrature Encoder 0
-    IntDefaultHandler,                      // ADC Sequence 0
-    configADC_ISR,                      // ADC Sequence 1
+    configADC_ISR,                      // ADC Sequence 0
+    IntDefaultHandler,                      // ADC Sequence 1
     IntDefaultHandler,                      // ADC Sequence 2
     IntDefaultHandler,                      // ADC Sequence 3
     IntDefaultHandler,                      // Watchdog timer

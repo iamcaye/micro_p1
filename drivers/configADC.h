@@ -12,10 +12,8 @@
 
 typedef struct
 {
-	uint16_t chan1;
-	uint16_t chan2;
-	uint16_t chan3;
-	uint16_t chan4;
+	uint32_t chan1;
+	uint32_t chan2;
 } MuestrasADC;
 
 typedef struct
@@ -24,6 +22,10 @@ typedef struct
 	uint32_t chan2;
 	uint32_t chan3;
 	uint32_t chan4;
+	uint32_t chan5;
+	uint32_t chan6;
+	uint32_t chan7;
+	uint32_t chan8;
 } MuestrasLeidasADC;
 
 
