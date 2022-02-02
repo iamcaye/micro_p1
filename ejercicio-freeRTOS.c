@@ -76,7 +76,7 @@ uint32_t g_n41 = 14;
 
 uint32_t g_d21[] = {10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,50,60,70,80};
 uint32_t g_v21[] = {2444,2041,1771,1558,1400,1294,1203,1140,1083,1029,997,962,892,823,791,671,601,568,538,512,478,419,388};
-uint32_t g_n21 = 20;
+uint32_t g_n21 = 15;
 
 //*****************************************************************************
 //
@@ -193,17 +193,17 @@ static portTASK_FUNCTION(MovimientoTask,pvParameters)
         if(paso.izq == 0){
             setSingleServoSpeed(LEFT_SERVO, 0.0f);
         } else if (paso.izq > 0){
-            setSingleServoSpeed(LEFT_SERVO, 0.2f);
+            setSingleServoSpeed(LEFT_SERVO, 0.4f);
         } else {
-            setSingleServoSpeed(LEFT_SERVO, -0.2f);
+            setSingleServoSpeed(LEFT_SERVO, -0.4f);
         }
 
         if(paso.der == 0){
             setSingleServoSpeed(RIGHT_SERVO, 0.0f);
         } else if (paso.der > 0){
-            setSingleServoSpeed(RIGHT_SERVO, 0.2f);
+            setSingleServoSpeed(RIGHT_SERVO, 0.3f);
         } else {
-            setSingleServoSpeed(RIGHT_SERVO, -0.2f);
+            setSingleServoSpeed(RIGHT_SERVO, -0.3f);
         }
 
         if(paso.der < 0){
@@ -247,7 +247,7 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                i++;
            }
 
-           UARTprintf("Tensiones: %d \t %d\n", r_adc.chan1, r_adc.chan2);
+//           UARTprintf("Tensiones: %d \t %d\n", r_adc.chan1, r_adc.chan2);
 
            if(i < g_n41){
                //UARTprintf("Sensor gp41: %d\n", g_d41[i]);
@@ -265,22 +265,20 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
            }
 
            j = 0;
-           if(g_event == NO_EVENT){
-               // Obtener distancia captada por el sensor gp21
-               while((j < g_n21) && (r_adc.chan2 < g_v21[j])){
-                   j++;
-               }
+           // Obtener distancia captada por el sensor gp21
+           while((j < g_n21) && (r_adc.chan2 < g_v21[j])){
+               j++;
+           }
 
-               if(j < g_n21){
-                   UARTprintf("Sensor gp21: %d\n", g_d21[j]);
-                   if((g_status == STATUS_FINDING_CENTER) && (g_d21[j] > 24)){
-                       g_event = EV_CENTER;
-                   } else if((g_status == STATUS_CENTER_FOUND) && (g_d21[j] > 24)){
-                       g_event = EV_NOT_ON_CENTER;
-                   }
-               } else if (g_status == STATUS_FINDING_CENTER){
-                   g_event = EV_NO_CENTER;
+           if((j < g_n21) && (g_event != EV_NO_BOX)){
+//               UARTprintf("Sensor gp21: %d\n", g_d21[j]);
+               if((g_status == STATUS_FINDING_CENTER)){
+                   g_event = EV_CENTER;
+               } else if((g_status == STATUS_CENTER_FOUND) && (g_d21[j] > 24)){
+                   g_event = EV_NOT_ON_CENTER;
                }
+           } else if (g_status == STATUS_FINDING_CENTER){
+               g_event = EV_NO_CENTER;
            }
         } else if(q == s_suelo) {
             xSemaphoreTake(s_suelo, 0);
@@ -299,7 +297,7 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     girar_robot(360);
                     GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
                 } else if (g_event == EV_BOX){
-                    UARTprintf("STATUS_FINDING_BOX -> STATUS_BOX_FOUND\n");
+//                    UARTprintf("STATUS_FINDING_BOX -> STATUS_BOX_FOUND\n");
                     g_status = STATUS_BOX_FOUND;
                     xQueueReset(q_steps);
                     xSemaphoreGive(s_control);
@@ -309,11 +307,12 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     xSemaphoreGive(s_control);
                     mover_robot(-10);
                     girar_robot(180);
+                    vTaskDelay(configTICK_RATE_HZ);
                 }
                 break;
             case STATUS_BOX_FOUND:
                 if(g_event == EV_HAS_BOX){
-                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_CENTER\n");
+//                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_CENTER\n");
                     g_status = STATUS_FINDING_CENTER;
                     xQueueReset(q_steps);
                     xSemaphoreGive(s_control);
@@ -323,9 +322,10 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     xSemaphoreGive(s_control);
                     mover_robot(-10);
                     girar_robot(-90);
+                    vTaskDelay(configTICK_RATE_HZ);
                     xQueueReset(cola_adc);
                     g_status = STATUS_FINDING_BOX;
-                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_BOX\n");
+//                    UARTprintf("STATUS_BOX_FOUND -> STATUS_FINDING_BOX\n");
                 } else if (g_event == EV_DONT_HAVE_BOX){
                     mover_robot(g_d41[i]);
                 } else if(g_event == EV_NO_BOX){
@@ -336,7 +336,7 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                 break;
             case STATUS_FINDING_CENTER:
                 if(g_event == EV_CENTER){
-                    UARTprintf("STATUS_FINDING_CENTER -> STATUS_CENTER_FOUND\n");
+//                    UARTprintf("STATUS_FINDING_CENTER -> STATUS_CENTER_FOUND\n");
                     GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
                     g_status = STATUS_CENTER_FOUND;
                     xQueueReset(q_steps);
@@ -356,12 +356,13 @@ static portTASK_FUNCTION(OrdenesTask,pvParameters)
                     xSemaphoreGive(s_control);
                     mover_robot(-10);
                     girar_robot(180);
-                    vTaskDelay(1.5*configTICK_RATE_HZ);
+                    vTaskDelay(1500);
                     xQueueReset(cola_adc);
                     g_status = STATUS_FINDING_BOX;
-                    UARTprintf("STATUS_CENTER_FOUND -> STATUS_FINDING_BOX\n");
+//                    UARTprintf("STATUS_CENTER_FOUND -> STATUS_FINDING_BOX\n");
                 } else if(g_event == EV_NOT_ON_CENTER){
                     mover_robot(g_d21[j]);
+
                 } else if (g_event == EV_NO_CENTER){
                     g_status = STATUS_FINDING_CENTER;
                     xQueueReset(q_steps);
